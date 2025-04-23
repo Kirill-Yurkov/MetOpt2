@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
-import time
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
+import time
 
 # Загрузка данных
 data = pd.read_csv('MetOpt2/housing.csv')
@@ -27,7 +27,8 @@ def grad_f(X, y, alpha):
 
 # Реализация метода Флетчера-Ривса
 # Реализация метода Флетчера-Ривса
-def fletcher_reeves(X, y, tol=1e-6, max_iter=1000):
+# Реализация метода Флетчера-Ривса
+def fletcher_reeves(X, y, tol=1e-6, max_iter=2000):
     """
     Метод Флетчера-Ривса для минимизации функционала.
     
@@ -54,10 +55,12 @@ def fletcher_reeves(X, y, tol=1e-6, max_iter=1000):
     alpha_norm_history = [np.linalg.norm(alpha)]
     
     start_time = time.time()
+    num_iterations = 0  # Счетчик итераций
+    
     for i in range(max_iter):
-        # Линейный поиск для определения шага alpha_p
-        Ap = X @ p  # Вектор размерности (n_samples,)
-        alpha_p = np.dot(Ap, Ap) / np.dot(p, X.T @ Ap)  # Корректное вычисление шага
+        # Линейный поиск для определения шага beta
+        Ap = X @ p
+        alpha_p = np.dot(grad, grad) / np.dot(p, X.T @ Ap)  # Корректное вычисление шага
         
         # Обновление alpha
         alpha_new = alpha + alpha_p * p
@@ -70,6 +73,9 @@ def fletcher_reeves(X, y, tol=1e-6, max_iter=1000):
         loss_history.append(f(X, y, alpha_new))
         grad_norm_history.append(grad_norm)
         alpha_norm_history.append(np.linalg.norm(alpha_new))
+        
+        # Увеличение счетчика итераций
+        num_iterations += 1
         
         # Проверка условия остановки
         if grad_norm < tol:
@@ -84,7 +90,6 @@ def fletcher_reeves(X, y, tol=1e-6, max_iter=1000):
         grad = grad_new
     
     execution_time = time.time() - start_time
-    num_iterations = i + 1
     return alpha, loss_history, grad_norm_history, alpha_norm_history, num_iterations, execution_time
 
 # Запуск метода Флетчера-Ривса
@@ -96,14 +101,15 @@ print(f"Время выполнения: {execution_time:.4f} секунд")
 print(f"Найденный вектор весов: {alpha}")
 
 # Построение графиков
-plt.figure(figsize=(15, 5))
+plt.figure(figsize=(18, 6))
 
 # График убывания функции потерь
 plt.subplot(1, 3, 1)
-plt.plot(loss_history, label="Loss")
+plt.plot(loss_history, label="Loss", color="blue")
 plt.title("Убывание функции потерь")
 plt.xlabel("Итерации")
 plt.ylabel("Значение функции потерь")
+plt.yscale("log")  # Логарифмический масштаб для наглядности
 plt.legend()
 
 # График нормы градиента
@@ -112,6 +118,7 @@ plt.plot(grad_norm_history, label="Gradient Norm", color="orange")
 plt.title("Убывание нормы градиента")
 plt.xlabel("Итерации")
 plt.ylabel("Норма градиента")
+plt.yscale("log")  # Логарифмический масштаб для наглядности
 plt.legend()
 
 # График нормы вектора весов
