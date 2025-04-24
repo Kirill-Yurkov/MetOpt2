@@ -6,7 +6,7 @@ from sklearn.preprocessing import StandardScaler
 import time  # Для измерения времени выполнения
 
 # === 1. Загрузка данных ===
-df = pd.read_csv("MetOpt2/housing.csv")
+df = pd.read_csv("housing.csv")
 X = df.drop(columns=["MEDV"]).values
 y = df["MEDV"].values.reshape(-1, 1)
 
