@@ -1,95 +1,87 @@
-import numpy as np
+from sklearn.metrics import mean_squared_error, r2_score
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-from time import time
+import numpy as np
 
-# Загрузка данных
-data = pd.read_csv('MetOpt2/housing.csv')
-X = data.drop(columns=['MEDV']).values  # Матрица признаков
-y = data['MEDV'].values  # Целевая переменная
+data = pd.read_csv('housing.csv')
+X = data.drop(columns=['MEDV']).values
+y = data['MEDV'].values
+X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.65, random_state=23)
+X_mean = X_train.mean(axis=0)
+X_std = X_train.std(axis=0)
+X_train = (X_train - X_mean) / X_std
+y_train_mean = y_train.mean()
+y_train_std = y_train.std()
+y_train = (y_train - y_train_mean) / y_train_std
 
-# Разделение на train/test
-X_train, X_test, y_train, y_test = train_test_split(X, y,  train_size=0.65, random_state=23)
-
-# Нормализация данных
-X_train = (X_train - X_train.mean(axis=0)) / X_train.std(axis=0)
-y_train = (y_train - y_train.mean()) / y_train.std()
-
-# Инициализация параметров
-alpha = np.zeros(X_train.shape[1])  # Начальные веса
-grad = 2 * X_train.T @ (X_train @ alpha - y_train)  # Градиент
-d = -grad  # Начальное направление
-tolerance = 1e-6  # Допустимая погрешность
-max_iter = 1000  # Максимальное число итераций
-
-# Списки для сохранения метрик
+alpha = np.zeros(X_train.shape[1])
+grad = 2 * X_train.T @ (X_train @ alpha - y_train)
+d = -grad
 losses = []
 grad_norms = []
 alpha_norms = []
-times = []
 
-# Время начала работы алгоритма
-start_time = time()
-
-for k in range(max_iter):
-    # Сохранение текущих значений
+for k in range(100):
     losses.append(np.linalg.norm(X_train @ alpha - y_train) ** 2)
     grad_norms.append(np.linalg.norm(grad))
     alpha_norms.append(np.linalg.norm(alpha))
-    times.append(time() - start_time)
-    
-    # Проверка условия остановки
-    if np.linalg.norm(grad) < tolerance:
+    if np.linalg.norm(grad) < 0.001:
         print(f"Сходимость достигнута за {k} итераций.")
         break
-    
-    # Вычисление оптимального шага beta
-    Ad = 2 * X_train.T @ (X_train @ d)
-    beta = -(grad.T @ d) / (d.T @ Ad)
-    
-    # Обновление весов
-    alpha = alpha + beta * d
-    
-    # Вычисление нового градиента
+
+    gamma_k = (grad.T @ grad) / (d.T @ (2 * X_train.T @ X_train @ d))
+    alpha = alpha + gamma_k * d
     grad_new = 2 * X_train.T @ (X_train @ alpha - y_train)
-    
-    # Вычисление коэффициента gamma
-    gamma = np.linalg.norm(grad_new) ** 2 / np.linalg.norm(grad) ** 2
-    
-    # Обновление направления
-    d = -grad_new + gamma * d
-    
-    # Обновление градиента
+    beta_k = (grad_new.T @ grad_new) / (grad.T @ grad)
+    d = -grad_new + beta_k * d
     grad = grad_new
 
-# Построение графиков
-plt.figure(figsize=(15, 5))
-
-# График убывания функции
-plt.subplot(1, 3, 1)
+plt.figure(figsize=(8, 6))
 plt.plot(losses)
 plt.title("Убывание функции")
 plt.xlabel("Итерации")
 plt.ylabel("Значение функции")
+plt.grid(True)
 
-# График нормы градиента
-plt.subplot(1, 3, 2)
+plt.figure(figsize=(8, 6))
 plt.plot(grad_norms)
 plt.title("Норма градиента")
 plt.xlabel("Итерации")
 plt.ylabel("Норма градиента")
+plt.grid(True)
 
-# График нормы вектора весов
-plt.subplot(1, 3, 3)
+plt.figure(figsize=(8, 6))
 plt.plot(alpha_norms)
 plt.title("Норма вектора весов")
 plt.xlabel("Итерации")
 plt.ylabel("Норма весов")
+plt.grid(True)
+plt.show()
 
+y_test_mean = y_train.mean()
+y_test_std = y_train.std()
+X_test_normalized = (X_test - X_mean) / X_std
+y_test_normalized = (y_test - y_test_mean) / y_test_std
+y_pred_normalized = X_test_normalized @ alpha
+y_pred = y_pred_normalized * y_train_std + y_train_mean
+
+mse = mean_squared_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+
+print(f"Среднеквадратичная ошибка (MSE): {mse:.4f}")
+print(f"Коэффициент детерминации (R^2): {r2:.4f}")
+
+plt.figure(figsize=(8, 6))
+plt.scatter(y_test, y_pred, alpha=0.7, color='blue', label='Предсказания')
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], color='red', linestyle='--', label="Идеальное совпадение")
+plt.xlabel("Истинные значения MEDV")
+plt.ylabel("Предсказанные значения MEDV")
+plt.title("Сравнение предсказаний и настоящих значений")
+plt.legend()
+plt.grid(True)
 plt.tight_layout()
 plt.show()
 
-# Вывод результатов
-print(f"Количество итераций: {k}")
-print(f"Время работы: {time() - start_time:.4f} секунд")
+
+
