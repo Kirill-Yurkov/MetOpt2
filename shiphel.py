@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 import time
 
-data = pd.read_csv('housing.csv')
+data = pd.read_csv('MetOpt2/housing.csv')
 X = data.drop(columns=['MEDV']).values
 y = data['MEDV'].values
 X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.65, random_state=23)
