@@ -6,12 +6,12 @@ from sklearn.preprocessing import StandardScaler
 import time  # Для измерения времени выполнения
 
 # === 1. Загрузка данных ===
-df = pd.read_csv("housing.csv")
+df = pd.read_csv("MetOpt2/housing.csv")
 X = df.drop(columns=["MEDV"]).values
 y = df["MEDV"].values.reshape(-1, 1)
 
 # === 2. Деление на train/test ===
-X_train, _, y_train, _ = train_test_split(X, y, test_size=0.35, random_state=23)
+X_train, _, y_train, _ = train_test_split(X, y, train_size=0.65, random_state=23)
 
 # === 3. Масштабирование ===
 scaler = StandardScaler()
