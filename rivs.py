@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 import numpy as np
+import time  
 
 data = pd.read_csv('housing.csv')
 X = data.drop(columns=['MEDV']).values
@@ -21,6 +22,7 @@ d = -grad
 losses = []
 grad_norms = []
 alpha_norms = []
+start_time = time.time()
 
 for k in range(100):
     losses.append(np.linalg.norm(X_train @ alpha - y_train) ** 2)
@@ -36,6 +38,9 @@ for k in range(100):
     beta_k = (grad_new.T @ grad_new) / (grad.T @ grad)
     d = -grad_new + beta_k * d
     grad = grad_new
+
+end_time = time.time()
+print(f" Время выполнения алгоритма: {end_time - start_time:.4f} секунд")
 
 plt.figure(figsize=(8, 6))
 plt.plot(losses)
@@ -59,10 +64,7 @@ plt.ylabel("Норма весов")
 plt.grid(True)
 plt.show()
 
-y_test_mean = y_train.mean()
-y_test_std = y_train.std()
 X_test_normalized = (X_test - X_mean) / X_std
-y_test_normalized = (y_test - y_test_mean) / y_test_std
 y_pred_normalized = X_test_normalized @ alpha
 y_pred = y_pred_normalized * y_train_std + y_train_mean
 
@@ -82,6 +84,3 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.show()
-
-
-
