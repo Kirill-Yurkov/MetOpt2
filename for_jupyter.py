@@ -1,185 +1,146 @@
-import numpy as np
+from sklearn.metrics import mean_squared_error, r2_score
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+import numpy as np
 import time
 
-# === 1. Загрузка данных ===
-def load_data():
-    df = pd.read_csv("housing.csv")
-    X = df.drop(columns=["MEDV"]).values
-    y = df["MEDV"].values.reshape(-1, 1)
-    return X, y
+data = pd.read_csv('housing.csv')
+X = data.drop(columns=['MEDV']).values
+y = data['MEDV'].values
+X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.65, random_state=23)
 
-X, y = load_data()
+X_mean = X_train.mean(axis=0)
+X_std = X_train.std(axis=0)
+X_train = (X_train - X_mean) / X_std
+y_train_mean = y_train.mean()
+y_train_std = y_train.std()
+y_train = (y_train - y_train_mean) / y_train_std
 
-# === 2. Деление на train/test ===
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.35, random_state=23)
-
-# === 3. Масштабирование ===
-y_train = y_train.ravel()
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
-print("X_train_scaled shape:", X_train_scaled.shape)
-print("y_train shape:", y_train.shape)
-# === 4. Определение общей функции потерь и градиента ===
-def f(X, y, alpha):
-    """Функция потерь: ||X @ alpha - y||^2"""
-    return np.linalg.norm(X @ alpha - y) ** 2
-
-def grad_f(X, y, alpha):
-    """Градиент функции потерь"""
-    grad = 2 * X.T @ (X @ alpha - y)
-    return np.squeeze(grad) 
-
-# === 5. Метод Хестениса–Штифеля ===
-def hestenes_stiefel_cg(X, y, max_iter=100, tol=0.001):
-    start_time = time.time()
-    m = X.shape[1]  # Количество признаков
-    alpha = np.zeros(m)  # Начальное приближение (вектор длины m)
-    r = grad_f(X, y, alpha)  # Начальный градиент
-    p = -r  # Начальное направление
-    loss_values = []
+def shiphel(X_train, y_train):
+    alpha = np.zeros(X_train.shape[1])
+    grad = 2 * X_train.T @ (X_train @ alpha - y_train)
+    d = -grad
+    losses = []
     grad_norms = []
     alpha_norms = []
-    iteration_count = 0  
+    start_time = time.time()  
 
-    for k in range(max_iter):
-        iteration_count += 1  
-        
-        # Проверка размерностей
-        assert r.shape == (m,), f"r shape is {r.shape}, expected ({m},)"
-        assert p.shape == (m,), f"p shape is {p.shape}, expected ({m},)"
-        
-        Ap = X.T @ (X @ p)  # Вычисление Ap
-        if np.dot(p, Ap) == 0:
-            print("Zero division error in alpha_step calculation.")
+    for k in range(100):
+        losses.append(np.linalg.norm(X_train @ alpha - y_train) ** 2)
+        grad_norms.append(np.linalg.norm(grad))
+        alpha_norms.append(np.linalg.norm(alpha))
+        if np.linalg.norm(grad) < 0.001:
             break
-        
-        alpha_step = np.dot(r, r) / np.dot(p, Ap)  # Вычисление шага
-        
-        # Обновление alpha
-        alpha_new = alpha + alpha_step * p
-        
-        # Вычисление нового градиента
-        r_new = r + alpha_step * Ap
-        grad_norm = np.linalg.norm(r_new)
-        
-        # Обновление истории
-        loss_values.append(f(X, y, alpha_new))
-        grad_norms.append(grad_norm)
-        alpha_norms.append(np.linalg.norm(alpha_new))
-        
-        # Проверка условия остановки
-        if grad_norm < tol:
-            break
-        
-        # Вычисление коэффициента Хестениса–Штифеля
-        beta = np.dot(r_new, (r_new - r)) / np.dot(p, (r_new - r))
-        
-        # Обновление направления
-        p = -r_new + beta * p
-        
-        # Обновление переменных
-        alpha = alpha_new
-        r = r_new
+        A = 2 * X_train.T @ X_train 
+        gamma_k = -(grad.T @ d) / (d.T @ A @ d)
+        alpha = alpha + gamma_k * d
 
-    elapsed_time = time.time() - start_time
-    return alpha, loss_values, grad_norms, alpha_norms, elapsed_time, iteration_count
-
-def polak_ribiere_cg(X, y, tol=1e-6, max_iter=2000):
-    n = X.shape[1]  # Количество признаков
-    alpha = np.zeros(n)  # Начальное приближение (вектор длины n)
-    grad = grad_f(X, y, alpha)  # Градиент функции потерь
-    p = -grad  # Начальное направление (антиградиент)
-    
-    loss_history = [f(X, y, alpha)]  # История значений функции потерь
-    grad_norm_history = [np.linalg.norm(grad)]  # История нормы градиента
-    alpha_norm_history = [np.linalg.norm(alpha)]  # История нормы вектора весов
-    
-    start_time = time.time()
-    num_iterations = 0  # Счетчик итераций
-
-    for i in range(max_iter):
-        # Линейный поиск для определения шага alpha_p
-        Ap = X.T @ (X @ p)  # Вычисление Ap
-        if np.dot(p, Ap) == 0:
-            print("Zero division error in alpha_p calculation.")
-            break
-        alpha_p = np.dot(grad, grad) / np.dot(p, Ap)  # Вычисление шага
-        
-        # Обновление alpha
-        alpha_new = alpha + alpha_p * p
-        
-        # Вычисление нового градиента
-        grad_new = grad_f(X, y, alpha_new)
-        grad_norm = np.linalg.norm(grad_new)
-        
-        # Обновление истории
-        loss_history.append(f(X, y, alpha_new))
-        grad_norm_history.append(grad_norm)
-        alpha_norm_history.append(np.linalg.norm(alpha_new))
-        
-        # Увеличение счетчика итераций
-        num_iterations += 1
-        
-        # Проверка условия остановки
-        if grad_norm < tol:
-            break
-        
-        # Вычисление коэффициента Полака-Рибьера
-        beta = np.dot(grad_new, (grad_new - grad)) / np.dot(grad, grad)
-        
-        # Обновление направления
-        p = -grad_new + beta * p
-        
-        # Обновление переменных
-        alpha = alpha_new
+        grad_new = 2 * X_train.T @ (X_train @ alpha - y_train)
+        beta_k = (grad_new.T @ (grad_new - grad)) / (d.T @ (grad_new - grad))
+        d = -grad_new + beta_k * d
         grad = grad_new
 
-    execution_time = time.time() - start_time
-    return alpha, loss_history, grad_norm_history, alpha_norm_history, num_iterations, execution_time
+    end_time = time.time() 
+    execution_time=end_time-start_time
+    return alpha, losses, grad_norms, alpha_norms, execution_time, k
 
-# === 7. Запуск методов и визуализация ===
-def run_and_visualize(method, X_train, y_train, title_prefix=""):
-    alpha_opt, losses, grad_norms, alpha_norms, iterations, execution_time = method(X_train, y_train)
-    
-    print(f"{title_prefix} Время выполнения алгоритма: {execution_time:.4f} секунд")
-    print(f"{title_prefix} Количество итераций: {iterations}")
-    
-    plt.figure(figsize=(16, 4))
+alpha_shiphel, losses_shiphel, grad_norms_shiphel, alpha_norms_shiphel, execution_time_shiphel, iterations_shiphel = shiphel(X_train=X_train, y_train=y_train)
+print(f"Время выполнения алгоритма: {execution_time_shiphel:.4f} секунд")
+print(f"Количество итераций: {iterations_shiphel}")
+def visualize_plots_params(losses, grad_norms, alpha_norms):
+    # Графики метрик
+    plt.figure(figsize=(8, 6))
+    plt.plot(losses)
+    plt.title("Убывание функции")
+    plt.xlabel("Итерации")
+    plt.ylabel("Значение функции")
+    plt.grid(True)
 
-    plt.subplot(1, 3, 1)
-    plt.plot(losses, label=f"{title_prefix} Loss", color="blue")
-    plt.title(f"{title_prefix} Функция потерь $\\rho^2$")
-    plt.xlabel("Итерация")
-    plt.ylabel("Значение")
-    plt.yscale("log")
+    plt.figure(figsize=(8, 6))
+    plt.plot(grad_norms)
+    plt.title("Норма градиента")
+    plt.xlabel("Итерации")
+    plt.ylabel("Норма градиента")
+    plt.grid(True)
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(alpha_norms)
+    plt.title("Норма вектора весов")
+    plt.xlabel("Итерации")
+    plt.ylabel("Норма весов")
+    plt.grid(True)
+    plt.show()
+
+visualize_plots_params(losses_shiphel, grad_norms_shiphel, alpha_norms_shiphel)
+
+def calculate_mse(alpha):
+    X_test_normalized = (X_test - X_mean) / X_std
+    y_pred_normalized = X_test_normalized @ alpha
+    y_pred = y_pred_normalized * y_train_std + y_train_mean
+
+    mse = mean_squared_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
+    return mse, r2, y_pred
+
+mse_shiphel, r2_shiphel, y_pred_shiphel = calculate_mse(alpha_shiphel)
+print(f"Среднеквадратичная ошибка (MSE): {mse_shiphel:.4f}")
+print(f"Коэффициент детерминации (R^2): {r2_shiphel:.4f}")
+
+def visualize_predictions(y_pred):
+    plt.figure(figsize=(8, 6))
+    plt.scatter(y_test, y_pred, alpha=0.7, color='blue', label='Предсказания')
+    plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], color='red', linestyle='--', label="Идеальное совпадение")
+    plt.xlabel("Истинные значения MEDV")
+    plt.ylabel("Предсказанные значения MEDV")
+    plt.title("Сравнение предсказаний и настоящих значений")
     plt.legend()
-
-    plt.subplot(1, 3, 2)
-    plt.plot(grad_norms, label=f"{title_prefix} Gradient Norm", color="orange")
-    plt.title(f"{title_prefix} Норма градиента")
-    plt.xlabel("Итерация")
-    plt.ylabel("$\\|\\nabla \\rho^2\\|$")
-    plt.yscale("log")
-    plt.legend()
-
-    plt.subplot(1, 3, 3)
-    plt.plot(alpha_norms, label=f"{title_prefix} Alpha Norm", color="green")
-    plt.title(f"{title_prefix} Норма весов $\\|\\alpha\\|$")
-    plt.xlabel("Итерация")
-    plt.ylabel("Норма")
-    plt.legend()
-
+    plt.grid(True)
     plt.tight_layout()
     plt.show()
 
-# Запуск методов
-print("=== Метод Хестениса–Штифеля ===")
-run_and_visualize(hestenes_stiefel_cg, X_train_scaled, y_train, title_prefix="HS: ")
+visualize_predictions(y_pred_shiphel)
 
-print("\n=== Метод Полака-Рибьера ===")
-run_and_visualize(polak_ribiere_cg, X_train_scaled, y_train, title_prefix="PR: ")
+def rivs(X_train, y_train):
+    alpha = np.zeros(X_train.shape[1])
+    grad = 2 * X_train.T @ (X_train @ alpha - y_train)
+    d = -grad
+    losses = []
+    grad_norms = []
+    alpha_norms = []
+    start_time = time.time()
+
+    for k in range(100):
+        losses.append(np.linalg.norm(X_train @ alpha - y_train) ** 2)
+        grad_norms.append(np.linalg.norm(grad))
+        alpha_norms.append(np.linalg.norm(alpha))
+        if np.linalg.norm(grad) < 0.001:
+            break
+
+        gamma_k = (grad.T @ grad) / (d.T @ (2 * X_train.T @ X_train @ d))
+        alpha = alpha + gamma_k * d
+        grad_new = 2 * X_train.T @ (X_train @ alpha - y_train)
+        beta_k = (grad_new.T @ grad_new) / (grad.T @ grad)
+        d = -grad_new + beta_k * d
+        grad = grad_new
+
+    end_time = time.time()
+    execution_time=end_time-start_time
+    return alpha, losses, grad_norms, alpha_norms, execution_time, k
+
+alpha_rivs, losses_rivs, grad_norms_rivs, alpha_norms_rivs, execution_time_rivs, iterations_rivs=rivs(X_train=X_train, y_train=y_train)
+
+print(f" Время выполнения алгоритма: {execution_time_rivs:.4f} секунд")
+print(f"Количество итераций: {iterations_rivs}")
+
+visualize_plots_params(losses_rivs, grad_norms_rivs, alpha_norms_rivs)
+
+mse_rivs, r2_rivs, y_pred_rivs =calculate_mse(alpha_rivs)
+
+print(f"Среднеквадратичная ошибка (MSE): {mse_rivs:.4f}")
+print(f"Коэффициент детерминации (R^2): {r2_rivs:.4f}")
+
+visualize_predictions(y_pred_rivs)
+
+tabledata=[['Хестенса-Штифеля', execution_time_shiphel, iterations_shiphel, mse_shiphel, r2_shiphel], ['Флетчера-Ривса', execution_time_rivs, iterations_rivs, mse_rivs, r2_rivs]]
+pd.DataFrame(tabledata, columns=["Алгоритм","Время выполнения (с)", "Количество итераций", "Среднеквадратичная ошибка (MSE)", "Коэффициент детерминации"])
